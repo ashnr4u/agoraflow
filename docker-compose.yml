@@ -1,0 +1,16 @@
+services:
+
+  database:
+    image:  postgres:18
+    container_name: agoraflowdb_container
+    ports: 
+     - "5000:5432"
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}      
+    volumes: 
+      - postgres_data:/var/lib/postgresql
+
+
+volumes:
+  postgres_data:
