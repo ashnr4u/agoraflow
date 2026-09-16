@@ -1,16 +1,18 @@
+# Services: define the containers/services used by the application
 services:
 
   database:
     image:  postgres:18
     container_name: agoraflowdb_container
     ports: 
-     - "5000:5432"
+     - "5000:5432"  # host port : PostgreSQL container port
     environment:
+      POSTGRES_DB: agoraflow
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}      
     volumes: 
       - postgres_data:/var/lib/postgresql
 
-
+# Volumes: define persistent storage used by the services
 volumes:
   postgres_data:
