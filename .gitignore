@@ -6,3 +6,6 @@ backend/src/__pycache__/
 backend/bullets.md
 
 .env
+
+__pycache__/
+*.pyc
