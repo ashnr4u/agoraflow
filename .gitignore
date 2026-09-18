@@ -3,5 +3,6 @@ backend/Phases
 prompt.md
 backend/to_and_fro.md
 backend/src/__pycache__/
+backend/bullets.md
 
 .env
