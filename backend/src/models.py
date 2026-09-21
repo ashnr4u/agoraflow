@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import ForeignKey
+from sqlalchemy import ForeignKey, CheckConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -17,6 +17,16 @@ class User(Base):
     hashed_password: Mapped[str]
     role: Mapped[str]
     created_at: Mapped[datetime]
+
+    __table_args__ =(
+            CheckConstraint( 
+                "role IN ('student','organiser')",
+                name = "checking_roles" 
+                # Name the constraint so the database/Alembic can identify it later
+                # (useful for inspecting, modifying, or dropping the constraint).
+            ),
+    )
+
 
 
 class Event(Base):

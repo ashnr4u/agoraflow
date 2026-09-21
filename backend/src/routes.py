@@ -1,9 +1,12 @@
+
 from models import User,Event,Registration
 from database import get_db,password_hash
 from schemas import UserCreate
 from fastapi import Depends,APIRouter
 from datetime import datetime, timezone
+from sqlalchemy.exc import IntegrityError
 router = APIRouter()
+from fastapi import HTTPException
 
 @router.post("/create_user" )
 def create_user(user: UserCreate,session= Depends(get_db)):
@@ -19,10 +22,12 @@ def create_user(user: UserCreate,session= Depends(get_db)):
                 session.commit()
 
                 return ("User Created Successfully")
-        except Exception:
-                raise Exception("Error")
+        except IntegrityError:
+                # If same-email repeats
+                session.rollback()
+                raise HTTPException(status_code=409, detail= "User's Email already exists")
         
-
+        
 
 
 

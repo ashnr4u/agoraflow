@@ -11,6 +11,7 @@ class UserCreate(BaseModel):
     @field_validator("user_email")
     @classmethod
     def validate_email(cls,user_email):
+        user_email =user_email.lower()
         if user_email.endswith("@agoraflow"):
             return user_email
         else:
