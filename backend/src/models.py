@@ -29,6 +29,7 @@ class User(Base):
 
 
 
+
 class Event(Base):
     __tablename__ = "events"
 
