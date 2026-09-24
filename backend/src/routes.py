@@ -1,12 +1,44 @@
 
 from models import User,Event,Registration
 from database import get_db,password_hash
-from schemas import UserCreate, CreateEvent, EventResponse,RegistrationCreate
-from fastapi import Depends,APIRouter
-from datetime import datetime, timezone
+from schemas import UserCreate, CreateEvent, EventResponse,RegistrationCreate,UserLogin
+from fastapi import Depends,APIRouter, HTTPException,Request
+from datetime import datetime, timezone, timedelta
 from sqlalchemy.exc import IntegrityError
+import os, jwt
+from dotenv import load_dotenv
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+
+load_dotenv()
+jwt_secret_key = os.getenv("JWT_SECRET")
+
+#extraxts jwt from bearer
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
+
 router = APIRouter()
-from fastapi import HTTPException
+
+def get_token(token=Depends(oauth2_scheme),session=Depends(get_db)):
+    token = jwt.decode(token, jwt_secret_key, algorithms=["HS256"])
+    #jwt.decode() returns a Python dictionary
+    user_id_token= token['sub']
+    user_logged = session.query(User).filter(User.user_id==user_id_token).first()
+    print("the role of user logged",user_logged.role)
+    return user_logged
+
+def require_organizer(current_user=Depends(get_token)):
+    if current_user.role != "organiser":
+        raise HTTPException(
+            status_code=403,
+            detail="Only organisers can perform this action"
+        )
+
+    return current_user
+
+@router.get("/test_get_token")
+def test_get_token(token=Depends(get_token)):
+    return {"message": "works"}
+
+
 
 @router.post("/create_user" )
 def create_user(user: UserCreate,session= Depends(get_db)):
@@ -16,7 +48,7 @@ def create_user(user: UserCreate,session= Depends(get_db)):
                 new_user.name = user.users_name
                 new_user.hashed_password = password_hash.hash(user.password)
                 new_user.role = user.role
-                new_user.created_at = datetime.now()
+                new_user.created_at = datetime.now(timezone.utc)
         
                 session.add(new_user)
                 session.commit()
@@ -28,7 +60,7 @@ def create_user(user: UserCreate,session= Depends(get_db)):
                 raise HTTPException(status_code=409, detail= "User's Email already exists")
         
         
-
+# auth required - access to organiser
 @router.post("/create_event")
 def create_event(event: CreateEvent, session = Depends(get_db)):
         try:
@@ -51,13 +83,13 @@ def create_event(event: CreateEvent, session = Depends(get_db)):
                 
 
 
-
+#get event lust(Anyone can have it)
 @router.get("/event_list", response_model=list[EventResponse])
 def get_events( session=Depends(get_db)):
         events_list = session.query(Event).all()
         return events_list
 
-  
+# auth required
 @router.post("/register")
 def register_user( registration: RegistrationCreate, session=Depends(get_db)
 ):
@@ -71,3 +103,33 @@ def register_user( registration: RegistrationCreate, session=Depends(get_db)
     session.commit()
 
     return {"message": "Registration successful"}
+
+
+#login_endpoint
+@router.post("/login")
+def login(credentials: OAuth2PasswordRequestForm = Depends(), session=Depends(get_db)):
+    email = credentials.username
+    password = credentials.password
+
+    user = session.query(User).filter(User.user_email == email).first()
+
+    if password_hash.verify(password, user.hashed_password):
+
+        # If password is verified, create a token to send to the client
+        payload = {
+            "sub": str(user.user_id),
+            "iat": datetime.now(timezone.utc),
+            "exp": datetime.now(timezone.utc) + timedelta(minutes=30)
+        }
+
+        token = jwt.encode(
+            payload,
+            jwt_secret_key,
+            algorithm="HS256"
+        )
+
+    return {"access_token": token}
+
+
+
+

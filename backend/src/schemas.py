@@ -41,3 +41,6 @@ class EventResponse(BaseModel):
 class RegistrationCreate(BaseModel):
     event_id: int
 
+class UserLogin(BaseModel):
+     username : str # we changed user_email to username to test authorization
+     password :str
