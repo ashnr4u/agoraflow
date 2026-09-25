@@ -17,14 +17,17 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
 
 router = APIRouter()
 
+#get token from oauth and decode it to get the user
 def get_token(token=Depends(oauth2_scheme),session=Depends(get_db)):
     token = jwt.decode(token, jwt_secret_key, algorithms=["HS256"])
     #jwt.decode() returns a Python dictionary
+
     user_id_token= token['sub']
     user_logged = session.query(User).filter(User.user_id==user_id_token).first()
     print("the role of user logged",user_logged.role)
     return user_logged
 
+#check thea authorization 
 def require_organizer(current_user=Depends(get_token)):
     if current_user.role != "organiser":
         raise HTTPException(
@@ -32,7 +35,17 @@ def require_organizer(current_user=Depends(get_token)):
             detail="Only organisers can perform this action"
         )
 
-    return current_user
+    return current_user #retun user object
+
+#dependency whose responsibility is to check user role as student
+def require_student(current_user=Depends(get_token)):
+    if current_user.role != "student":
+                raise HTTPException(
+                    status_code =403,
+                    detail = "Only students can perform this action"
+                )
+    return current_user #retun user object after checking the role
+
 
 @router.get("/test_get_token")
 def test_get_token(token=Depends(get_token)):
@@ -62,8 +75,10 @@ def create_user(user: UserCreate,session= Depends(get_db)):
         
 # auth required - access to organiser
 @router.post("/create_event")
-def create_event(event: CreateEvent, session = Depends(get_db)):
+def create_event(event: CreateEvent, 
+                 current_user =Depends(require_organizer),session = Depends(get_db)):
         try:
+                
                 new_event = Event()
                 new_event.event_name = event.event_name
                 new_event.max_capacity = event.max_capacity
@@ -71,7 +86,10 @@ def create_event(event: CreateEvent, session = Depends(get_db)):
                 new_event.registration_close = event.registration_close
                 new_event.event_start_date = event.event_start_date
                 new_event.description = event.description
-                new_event.organizer_id = 41
+                # new_event.organizer_id = 41
+                new_event.organizer_id = current_user.user_id
+          
+
 
                 session.add(new_event)
                 session.commit()      
@@ -91,11 +109,14 @@ def get_events( session=Depends(get_db)):
 
 # auth required
 @router.post("/register")
-def register_user( registration: RegistrationCreate, session=Depends(get_db)
+def register_user( registration: RegistrationCreate, user_from_token =Depends(require_student),
+                  session=Depends(get_db)
 ):
     new_registration = Registration()
 
-    new_registration.user_id = 41
+    # new_registration.user_id = 41
+    new_registration.user_id = user_from_token.user_id
+
     new_registration.event_id = registration.event_id
     new_registration.registered_at = datetime.now()
 
