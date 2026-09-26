@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, CheckConstraint
+from sqlalchemy import ForeignKey, CheckConstraint ,UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -50,3 +50,7 @@ class Registration(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.user_id"))
     event_id: Mapped[int] = mapped_column(ForeignKey("events.event_id"))
     registered_at: Mapped[datetime]
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "event_id", name="uq_registration_user_event"),
+    )

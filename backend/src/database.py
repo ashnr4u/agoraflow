@@ -13,6 +13,7 @@ db_user= os.getenv("DB_USER")
 db_password= os.getenv("DB_PASSWORD")
 
 db_engine = create_engine(f"postgresql://{db_user}:{db_password}@localhost:5000/agoraflow")
+
 # creates all ORM-defined tables in the database
 # Base.metadata.create_all(db_engine)
 

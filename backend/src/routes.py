@@ -27,7 +27,7 @@ def get_token(token=Depends(oauth2_scheme),session=Depends(get_db)):
     print("the role of user logged",user_logged.role)
     return user_logged
 
-#check thea authorization 
+#check the authorization 
 def require_organizer(current_user=Depends(get_token)):
     if current_user.role != "organiser":
         raise HTTPException(
@@ -101,7 +101,7 @@ def create_event(event: CreateEvent,
                 
 
 
-#get event lust(Anyone can have it)
+#get event list (Anyone can have it)
 @router.get("/event_list", response_model=list[EventResponse])
 def get_events( session=Depends(get_db)):
         events_list = session.query(Event).all()
