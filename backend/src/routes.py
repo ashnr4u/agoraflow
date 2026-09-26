@@ -113,12 +113,53 @@ def register_user( registration: RegistrationCreate, user_from_token =Depends(re
                   session=Depends(get_db)
 ):
     new_registration = Registration()
-
-    # new_registration.user_id = 41
     new_registration.user_id = user_from_token.user_id
-
     new_registration.event_id = registration.event_id
     new_registration.registered_at = datetime.now()
+
+    event_detail  = session.query(Event).filter(Event.event_id== registration.event_id).first()
+
+    #checking if the event is there or not
+    if event_detail.event_id == None:
+          raise HTTPException(status_code=409,detail="No such event")
+    
+    
+    
+    #checking the user for the specific event  - if registered  raise an error.
+    existing_registration = session.query(Registration).filter(
+        Registration.event_id == event_detail.event_id,
+        Registration.user_id == new_registration.user_id
+    ).first()
+
+    if existing_registration:
+        raise HTTPException(
+            status_code=409,
+            detail="User already registered!"
+        ) 
+
+
+    #checking the dealine - if passed raise an error.
+    current_time = datetime.now()
+    if event_detail.registration_start <= current_time <= event_detail.registration_close:
+        print("Registration window is open")
+    else:
+        print("Registration window is closed")
+        raise HTTPException(
+            status_code=409,
+            detail="Registration window is closed"
+        )
+
+    #checking the maximum capacity - if full raise an error.
+    registration_count = session.query(Registration).filter(
+         Registration.event_id == event_detail.event_id
+    ).count()
+
+    if registration_count >= event_detail.max_capacity:
+        raise HTTPException(
+            status_code=409,
+            detail="Event is full"
+        )
+
 
     session.add(new_registration)
     session.commit()
