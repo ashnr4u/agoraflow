@@ -12,7 +12,7 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 load_dotenv()
 jwt_secret_key = os.getenv("JWT_SECRET")
 
-#extraxts jwt from bearer
+#extracts jwt from bearer
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
 
 router = APIRouter()
@@ -119,9 +119,9 @@ def register_user( registration: RegistrationCreate, user_from_token =Depends(re
 
     event_detail  = session.query(Event).filter(Event.event_id== registration.event_id).first()
 
-    #checking if the event is there or not
-    if event_detail.event_id == None:
-          raise HTTPException(status_code=409,detail="No such event")
+    #checking if we have such event : raise error if not
+    if event_detail is None:
+          raise HTTPException(status_code=403,detail="Event not Found")
     
     
     
@@ -162,8 +162,12 @@ def register_user( registration: RegistrationCreate, user_from_token =Depends(re
 
 
     session.add(new_registration)
-    session.commit()
-
+    try:
+        session.commit()
+    except IntegrityError:
+          session.rollback()
+          raise HTTPException(status_code=409,detail= "Conflict in the database insertion")
+    
     return {"message": "Registration successful"}
 
 
