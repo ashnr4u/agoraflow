@@ -1,4 +1,4 @@
-
+import redis
 from models import User,Event,Registration
 from database import get_db,password_hash
 from schemas import UserCreate, CreateEvent, EventResponse,RegistrationCreate,UserLogin
@@ -8,14 +8,21 @@ from sqlalchemy.exc import IntegrityError
 import os, jwt
 from dotenv import load_dotenv
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi import Header
 
 load_dotenv()
 jwt_secret_key = os.getenv("JWT_SECRET")
-
 #extracts jwt from bearer
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
 
 router = APIRouter()
+
+
+
+redis_client = redis.Redis(
+    host="localhost",
+    port=6379
+)
 
 #get token from oauth and decode it to get the user
 def get_token(token=Depends(oauth2_scheme),session=Depends(get_db)):
@@ -110,8 +117,25 @@ def get_events( session=Depends(get_db)):
 # auth required
 @router.post("/register")
 def register_user( registration: RegistrationCreate, user_from_token =Depends(require_student),
-                  session=Depends(get_db)
+                  session=Depends(get_db), idempotency_key: str = Header(...)
 ):
+    
+    print("idempotency_key:", idempotency_key)
+
+    result = redis_client.get(idempotency_key)
+    print("result:", result)
+
+    if result:
+        if result.decode() == str(registration.event_id):
+            print("Request already processed")
+            return "Request already processed"
+        else:
+            raise HTTPException(
+                status_code=409,
+                detail="Idempotency key already used for a different request"
+            )
+    
+
     new_registration = Registration()
     new_registration.user_id = user_from_token.user_id
     new_registration.event_id = registration.event_id
@@ -122,7 +146,6 @@ def register_user( registration: RegistrationCreate, user_from_token =Depends(re
     #checking if we have such event : raise error if not
     if event_detail is None:
           raise HTTPException(status_code=403,detail="Event not Found")
-    
     
     
     #checking the user for the specific event  - if registered  raise an error.
@@ -164,13 +187,17 @@ def register_user( registration: RegistrationCreate, user_from_token =Depends(re
     session.add(new_registration)
     try:
         session.commit()
+        redis_client.set(
+            idempotency_key,
+            str(registration.event_id),
+            ex=20
+        )
+
     except IntegrityError:
           session.rollback()
           raise HTTPException(status_code=409,detail= "Conflict in the database insertion")
     
     return {"message": "Registration successful"}
-
-
 #login_endpoint
 @router.post("/login")
 def login(credentials: OAuth2PasswordRequestForm = Depends(), session=Depends(get_db)):
@@ -195,7 +222,3 @@ def login(credentials: OAuth2PasswordRequestForm = Depends(), session=Depends(ge
         )
 
     return {"access_token": token}
-
-
-
-

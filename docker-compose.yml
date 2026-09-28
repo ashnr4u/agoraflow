@@ -2,16 +2,22 @@
 services:
 
   database:
-    image:  postgres:18
+    image: postgres:18
     container_name: agoraflowdb_container
-    ports: 
-     - "5000:5432"  # host port : PostgreSQL container port
+    ports:
+      - "5000:5432"
     environment:
       POSTGRES_DB: agoraflow
       POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}      
-    volumes: 
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
       - postgres_data:/var/lib/postgresql
+
+  redis_database:
+    image: redis:7
+    container_name: agoraflow_redis
+    ports:
+      - "6379:6379"
 
 # Volumes: define persistent storage used by the services
 volumes:

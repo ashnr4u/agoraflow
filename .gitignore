@@ -4,7 +4,8 @@ prompt.md
 backend/to_and_fro.md
 backend/src/__pycache__/
 backend/bullets.md
-
+backend/bullets.md
+backend/tests/test_cases.md
 .env
 
 __pycache__/
