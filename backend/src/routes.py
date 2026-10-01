@@ -2,6 +2,7 @@ import redis
 from models import User,Event,Registration
 from database import get_db,password_hash
 from schemas import UserCreate, CreateEvent, EventResponse,RegistrationCreate,UserLogin
+from schemas import ListRegistered
 from fastapi import Depends,APIRouter, HTTPException,Request
 from datetime import datetime, timezone, timedelta
 from sqlalchemy.exc import IntegrityError
@@ -17,8 +18,6 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
 
 router = APIRouter()
 
-
-
 redis_client = redis.Redis(
     host="localhost",
     port=6379
@@ -27,11 +26,12 @@ redis_client = redis.Redis(
 #get token from oauth and decode it to get the user
 def get_token(token=Depends(oauth2_scheme),session=Depends(get_db)):
     token = jwt.decode(token, jwt_secret_key, algorithms=["HS256"])
+
     #jwt.decode() returns a Python dictionary
 
     user_id_token= token['sub']
     user_logged = session.query(User).filter(User.user_id==user_id_token).first()
-    print("the role of user logged",user_logged.role)
+    # print("the role of user logged",user_logged.role)
     return user_logged
 
 #check the authorization 
@@ -114,41 +114,60 @@ def get_events( session=Depends(get_db)):
         events_list = session.query(Event).all()
         return events_list
 
+#get list of registred student 
+@router.get("/listof_registered",response_model=list[ListRegistered])
+def list_registered(session= Depends(get_db)):
+      reg_table = session.query(Registration).all()
+      result=[]
+      for obj in reg_table:
+            student_email= session.query(User).filter(User.user_id==obj.user_id).first()
+            result.append({
+                  "user_id":obj.user_id,
+                  "user_email": student_email.user_email,
+                  "event_id":obj.event_id
+            })
+      return result
+
 # auth required
 @router.post("/register")
-def register_user( registration: RegistrationCreate, user_from_token =Depends(require_student),
-                  session=Depends(get_db), idempotency_key: str = Header(...)
+def register_user(
+    registration: RegistrationCreate,
+    user_from_token=Depends(require_student),
+    session=Depends(get_db),
+    idempotency_key: str = Header(...)
 ):
-    
     print("idempotency_key:", idempotency_key)
 
-    result = redis_client.get(idempotency_key)
-    print("result:", result)
+    # Atomically claim the idempotency key
+    result_set = redis_client.set(
+        idempotency_key,
+        "Processing",
+        nx=True,
+        ex=40
+    )
 
-    if result:
-        if result.decode() == str(registration.event_id):
-            print("Request already processed")
-            return "Request already processed"
-        else:
-            raise HTTPException(
-                status_code=409,
-                detail="Idempotency key already used for a different request"
-            )
-    
+    # Another request is already processing this key
+    if not result_set:
+        print("Key already processed")
+        return "One request with the same key is already in process"
 
     new_registration = Registration()
     new_registration.user_id = user_from_token.user_id
     new_registration.event_id = registration.event_id
     new_registration.registered_at = datetime.now()
 
-    event_detail  = session.query(Event).filter(Event.event_id== registration.event_id).first()
+    event_detail = session.query(Event).filter(
+        Event.event_id == registration.event_id
+    ).first()
 
-    #checking if we have such event : raise error if not
+    # Checking if we have such event
     if event_detail is None:
-          raise HTTPException(status_code=403,detail="Event not Found")
-    
-    
-    #checking the user for the specific event  - if registered  raise an error.
+        raise HTTPException(
+            status_code=403,
+            detail="Event not Found"
+        )
+
+    # Checking if user is already registered
     existing_registration = session.query(Registration).filter(
         Registration.event_id == event_detail.event_id,
         Registration.user_id == new_registration.user_id
@@ -158,11 +177,11 @@ def register_user( registration: RegistrationCreate, user_from_token =Depends(re
         raise HTTPException(
             status_code=409,
             detail="User already registered!"
-        ) 
+        )
 
-
-    #checking the dealine - if passed raise an error.
+    # Checking registration window
     current_time = datetime.now()
+
     if event_detail.registration_start <= current_time <= event_detail.registration_close:
         print("Registration window is open")
     else:
@@ -172,9 +191,9 @@ def register_user( registration: RegistrationCreate, user_from_token =Depends(re
             detail="Registration window is closed"
         )
 
-    #checking the maximum capacity - if full raise an error.
+    # Checking maximum capacity
     registration_count = session.query(Registration).filter(
-         Registration.event_id == event_detail.event_id
+        Registration.event_id == event_detail.event_id
     ).count()
 
     if registration_count >= event_detail.max_capacity:
@@ -183,21 +202,27 @@ def register_user( registration: RegistrationCreate, user_from_token =Depends(re
             detail="Event is full"
         )
 
-
     session.add(new_registration)
+
     try:
         session.commit()
+
+        # Mark the request as completed
         redis_client.set(
             idempotency_key,
             str(registration.event_id),
-            ex=20
+            ex=40
         )
 
     except IntegrityError:
-          session.rollback()
-          raise HTTPException(status_code=409,detail= "Conflict in the database insertion")
-    
+        session.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="Conflict in the database insertion"
+        )
+
     return {"message": "Registration successful"}
+
 #login_endpoint
 @router.post("/login")
 def login(credentials: OAuth2PasswordRequestForm = Depends(), session=Depends(get_db)):
@@ -220,5 +245,5 @@ def login(credentials: OAuth2PasswordRequestForm = Depends(), session=Depends(ge
             jwt_secret_key,
             algorithm="HS256"
         )
-
+    print("token: ",token)
     return {"access_token": token}

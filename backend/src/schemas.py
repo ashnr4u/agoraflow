@@ -44,3 +44,8 @@ class RegistrationCreate(BaseModel):
 class UserLogin(BaseModel):
      username : str # we changed user_email to username to test authorization
      password :str
+
+class  ListRegistered(BaseModel):
+     user_id : int
+     user_email : str
+     event_id : int
