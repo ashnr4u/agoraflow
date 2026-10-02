@@ -1,4 +1,4 @@
-import redis
+import redis,json
 from models import User,Event,Registration
 from database import get_db,password_hash
 from schemas import UserCreate, CreateEvent, EventResponse,RegistrationCreate,UserLogin
@@ -145,9 +145,16 @@ def register_user(
         nx=True,
         ex=40
     )
-
-    # Another request is already processing this key
+      
     if not result_set:
+        check_database = session.query(Registration).filter(
+                  Registration.event_id==registration.event_id,
+                    Registration.user_id== user_from_token.user_id
+                  ).first()
+        if check_database != None:
+                  return {"message":"Request already processed"}
+        if check_database == None:
+              return  {"message":"Request is still being processed"}
         print("Key already processed")
         return "One request with the same key is already in process"
 
@@ -208,9 +215,17 @@ def register_user(
         session.commit()
 
         # Mark the request as completed
+        response_data = {
+            "status": "completed",
+            "status_code": 200,
+            "response": {
+                "message": "Registration successful"
+            }
+        }
+
         redis_client.set(
             idempotency_key,
-            str(registration.event_id),
+            json.dumps(response_data),
             ex=40
         )
 
