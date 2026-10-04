@@ -11,3 +11,4 @@ python-multipart
 pytest
 httpx2
 redis
+celery[redis]

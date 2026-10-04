@@ -19,6 +19,17 @@ services:
     ports:
       - "6379:6379"
 
+  celery_worker:
+    build:
+      context: ./backend
+    container_name: agoraflow_celery_worker
+    command: celery -A src.celery_app worker --loglevel=info
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - redis_database
+      - database
+
 # Volumes: define persistent storage used by the services
 volumes:
   postgres_data:

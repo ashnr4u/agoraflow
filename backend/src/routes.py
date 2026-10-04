@@ -145,7 +145,7 @@ def register_user(
         nx=True,
         ex=40
     )
-      
+    print("result_set",result_set)
     if not result_set:
         check_database = session.query(Registration).filter(
                   Registration.event_id==registration.event_id,
